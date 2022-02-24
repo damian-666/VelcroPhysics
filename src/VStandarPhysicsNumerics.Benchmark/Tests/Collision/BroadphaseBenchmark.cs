@@ -2,7 +2,7 @@
 using BenchmarkDotNet.Attributes;
 using Genbox.VelcroPhysics.Benchmarks.Code;
 using Genbox.VelcroPhysics.Benchmarks.Utilities;
-using Genbox.VelcroPhysics.Collision.Broadphase;
+using FarseerPhysics.Collision.Broadphase;
 using Genbox.VelcroPhysics.Collision.RayCast;
 using Genbox.VelcroPhysics.Shared;
 using Microsoft.Xna.Framework;
