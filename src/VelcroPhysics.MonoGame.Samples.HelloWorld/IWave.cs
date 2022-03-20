@@ -362,9 +362,9 @@ int main(int argc, char** argv)
         private float[] display_map;
         private float[] obstruction;
         private float[] source;
-         unsafe float[] height;
-         unsafe float[] previous_height;
-         unsafe float[] vertical_derivative;
+          float[] height;
+          float[] previous_height;
+          float[] vertical_derivative;
         private float scaling_factor;
         float[,] kernel = new float[13, 13];
 
@@ -386,7 +386,271 @@ int main(int argc, char** argv)
         // Initialize all of the fields to zero
 
 
-       public void Start()
+/* unsafe
+int iwidth, iheight, size;
+float *display_map;
+float *obstruction;
+float *source;
+float *height;
+float *previous_height;
+float *vertical_derivative;
+float scaling_factor;
+float[][] kernel = new float[13][13];
+int paint_mode;
+enum ePaintType{ PAINT_OBSTRUCTION, PAINT_SOURCE };
+bool regenerate_data;
+bool toggle_animation_on_off;
+float dt, alpha, gravity;
+float[][] obstruction_brush= new float [3][3];
+float[][]  source_brush = new float[3][3];
+int xmouse_prev, ymouse_prev;
+*/
+//--------------------------------------------------------
+//
+// Initialization routines
+//
+//
+// Initialize all of the fields to zero
+void Initialize( float *data, int size, float value )
+{
+    for(int i=0;i<size;i++ ) { data[i] = value; }
+}
+// Compute the elements of the convolution kernel
+void InitializeKernel()
+{
+    double dk = 0.01;
+    double sigma = 1.0;
+    double norm = 0;
+    for(double k=0;k<10;k+=dk)
+    {
+        norm += k*k*exp(-sigma*k*k);
+    }
+    for( int i=-6;i<=6;i++ )
+    {
+        for( int j=-6;j<=6;j++ )
+        {
+            double r = sqrt( (float)(i*i + j*j) );
+            double kern = 0;
+            for( double k=0;k<10;k+=dk)
+            {
+                kern += k*k*exp(-sigma*k*k)*j0(r*k);
+            }
+            kernel[i+6][j+6] = kern / norm;
+        }
+    }
+}
+void InitializeBrushes()
+{
+    obstruction_brush[1][1] = 0.0;
+    obstruction_brush[1][0] = 0.5;
+    obstruction_brush[0][1] = 0.5;
+    obstruction_brush[2][1] = 0.5;
+    obstruction_brush[1][2] = 0.5;
+    obstruction_brush[0][2] = 0.75;
+    obstruction_brush[2][0] = 0.75;
+    obstruction_brush[0][0] = 0.75;
+    obstruction_brush[2][2] = 0.75;
+    source_brush[1][1] = 1.0;
+    source_brush[1][0] = 0.5;
+    source_brush[0][1] = 0.5;
+    source_brush[2][1] = 0.5;
+    source_brush[1][2] = 0.5;
+    source_brush[0][2] = 0.25;
+    source_brush[2][0] = 0.25;
+    source_brush[0][0] = 0.25;
+    source_brush[2][2] = 0.25;
+}
+void ClearObstruction()
+{
+    for(int i=0;i<size;i++ ){ obstruction[i] = 1.0; }
+}
+void ClearWaves()
+{
+    for(int i=0;i<size;i++ )
+    {
+        height[i] = 0.0;
+        previous_height[i] = 0.0;
+        vertical_derivative[i] = 0.0;
+    }
+}
+//----------------------------------------------------
+void ConvertToDisplay()
+{
+    for(int i=0;i<size;i++ )
+    {
+        display_map[i] = 0.5*( height[i]/scaling_factor + 1.0 )*obstruction[i];
+    }
+}
+//----------------------------------------------------
+//
+// These two routines,
+//
+// ComputeVerticalDerivative()
+// Propagate()
+//
+// are the heart of the iWave algorithm.
+//
+// In Propagate(), we have not bothered to handle the
+// boundary conditions. This makes the outermost
+// 6 pixels all the way around act like a hard wall.
+//
+void ComputeVerticalDerivative()
+{
+    // first step: the interior
+    for(int ix=6;ix<iwidth-6;ix++)
+    {
+        for(int iy=6;iy<iheight-6;iy++)
+        {
+            int index = ix + iwidth*iy;
+            float vd = 0;
+            for(int iix=-6;iix<=6;iix++)
+            {
+                for(int iiy=-6;iiy<=6;iiy++)
+                {
+                    int iindex = ix+iix + iwidth*(iy+iiy);
+                    vd += kernel[iix+6][iiy+6] * height[iindex];
+                }
+            }
+            vertical_derivative[index] = vd;
+        }
+    }
+}
+void Propagate()
+{
+    // apply obstruction
+    for( int i=0;i<size;i++ ) { height[i] *= obstruction[i]; }
+    // compute vertical derivative
+    ComputeVerticalDerivative();
+    // advance surface
+    float adt = alpha*dt;
+    float adt2 = 1.0/(1.0+adt);
+    for( int i=0;i<size;i++ )
+    {
+        float temp = height[i];
+        height[i] = height[i]*(2.0-adt)-previous_height[i]-gravity*vertical_derivative[i];
+        height[i] *= adt2;
+        height[i] += source[i];
+        height[i] *= obstruction[i];
+        previous_height[i] = temp;
+        // reset source each step
+        source[i] = 0;
+    }
+}
+//------------------------------------------
+//
+// Painting and display code
+//
+void resetScaleFactor( float amount )
+{
+    scaling_factor *= amount;
+}
+void DabSomePaint( int x, int y )
+{
+    int xstart = x - 1;
+    int ystart = y - 1;
+    if( xstart < 0 ){ xstart = 0; }
+    if( ystart < 0 ){ ystart = 0; }
+    int xend = x + 1;
+    int yend = y + 1;
+    if( xend >= iwidth ){ xend = iwidth-1; }
+    if( yend >= iheight ){ yend = iheight-1; }
+    if( paint_mode == PAINT_OBSTRUCTION )
+    {
+        for(int ix=xstart;ix <= xend; ix++)
+        {
+            for( int iy=ystart;iy<=yend; iy++)
+            {
+                int index = ix + iwidth*(iheight-iy-1);
+                obstruction[index] *= obstruction_brush[ix-xstart][iy-ystart];
+            }
+        }
+    }
+    else if( paint_mode == PAINT_SOURCE )
+    {
+        for(int ix=xstart;ix <= xend; ix++)
+        {
+            for( int iy=ystart;iy<=yend; iy++)
+            {
+                int index = ix + iwidth*(iheight-iy-1);
+                source[index] += source_brush[ix-xstart][iy-ystart];
+            }
+        }
+    }
+    return;
+}
+
+
+#if PORT
+//----------------------------------------------------
+//
+// GL and GLUT callbacks
+//
+//----------------------------------------------------
+void cbDisplay( void )
+{
+    glClear(GL_COLOR_BUFFER_BIT );
+    glDrawPixels( iwidth, iheight, GL_LUMINANCE, GL_FLOAT, display_map );
+    glutSwapBuffers();
+}
+// animate and display new result
+void cbIdle()
+{
+    if( toggle_animation_on_off ) { Propagate(); }
+    ConvertToDisplay();
+    cbDisplay();
+}
+#endif
+
+#if PORT
+void cbOnKeyboard( unsigned char key, int x, int y )
+{
+    switch (key)
+    {
+    case ’-’: case ’_’:
+        resetScaleFactor( 1.0/0.9 );
+        regenerate_data = true;
+        break;
+    case ’+’: case ’=’:
+        resetScaleFactor( 0.9 );
+        regenerate_data = true;
+        break;
+    case ’ ’:
+        toggle_animation_on_off = !toggle_animation_on_off;
+    case ’o’:
+        paint_mode = PAINT_OBSTRUCTION;
+        break;
+    case ’s’:
+        paint_mode = PAINT_SOURCE;
+        break;
+    case ’b’:
+        ClearWaves();
+        ClearObstruction();
+        Initialize( source, size, 0.0 );
+        break;
+    default:
+        break;
+    }
+}
+void cbMouseDown( int button, int state, int x, int y )
+{
+    if( button != GLUT_LEFT_BUTTON ) { return; }
+    if( state != GLUT_DOWN ) { return; }
+    xmouse_prev = x;
+    ymouse_prev = y;
+    DabSomePaint( x, y );
+}
+void cbMouseMove( int x, int y )
+{
+    xmouse_prev = x;
+    ymouse_prev = y;
+    DabSomePaint( x, y );
+}
+#endif
+//int main(int argc, char** argv)
+
+
+
+       public void StartiWave()
         {
         // initialize a few variables
          iwidth = 200;
@@ -430,7 +694,7 @@ int main(int argc, char** argv)
 
         }
 
-        unsafe void Initialize(float[] data, int size, float value)
+         void Initialize(float[] data, int size, float value)
         {
             for (int i = 0; i < size; i++) { data[i] = value; }
         }
@@ -514,7 +778,7 @@ int main(int argc, char** argv)
         // boundary conditions. This makes the outermost
         // 6 pixels all the way around act like a hard wall.
         //
-        unsafe void ComputeVerticalDerivative()
+         void ComputeVerticalDerivative()
         {
             // first step: the interior
             for (int ix = 6; ix < iwidth - 6; ix++)
@@ -535,7 +799,7 @@ int main(int argc, char** argv)
                 }
             }
         }
-        unsafe     void Propagate()
+             void Propagate()
         {
             // apply obstruction
             for (int i = 0; i < size; i++) { height[i] *= obstruction[i]; }
@@ -664,7 +928,7 @@ int main(int argc, char** argv)
 
         */
         //---------------------------------------------------
-        unsafe int DisplayWave()
+         int DisplayWave()
         {
             // initialize a few variables
             iwidth = iheight = 200;
