@@ -52,8 +52,13 @@ namespace Genbox.VelcroPhysics.MonoGame.Samples.HelloWorld
 
             //Create a world with gravity.
             _world = new World(new Vector2(0, 9.82f));
-        }
 
+
+             iwave = new IWAVE.IWave();
+            iwave.StartiWave();
+
+        }
+        IWAVE.IWave iwave;
         protected override void LoadContent()
         {
             // Initialize camera controls
@@ -109,7 +114,13 @@ namespace Genbox.VelcroPhysics.MonoGame.Samples.HelloWorld
             _world.Step((float)gameTime.ElapsedGameTime.TotalMilliseconds * 0.001f);
 
             base.Update(gameTime);
+
+            if (iwave.toggle_animation_on_off)
+            { iwave.Propagate(); }
+            iwave.ConvertToDisplay();
+           // iwave.cbDisplay();
         }
+        
 
         protected override void Dispose(bool disposing)
         {
