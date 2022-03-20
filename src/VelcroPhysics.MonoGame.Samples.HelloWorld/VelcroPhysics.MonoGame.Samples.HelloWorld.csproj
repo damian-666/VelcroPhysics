@@ -6,6 +6,7 @@
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
     <IsPackable>false</IsPackable>
+    <MonoGamePlatform>Windows</MonoGamePlatform>
   </PropertyGroup>
 
   <ItemGroup>
