@@ -7,6 +7,10 @@
     <TieredCompilation>false</TieredCompilation>
     <IsPackable>false</IsPackable>
     <MonoGamePlatform>Windows</MonoGamePlatform>
+    <IsPublishable>False</IsPublishable>
+    <DebugType>none</DebugType>
+    <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
+    <RunAnalyzersDuringLiveAnalysis>False</RunAnalyzersDuringLiveAnalysis>
   </PropertyGroup>
 
   <ItemGroup>
